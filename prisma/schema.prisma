@@ -1,0 +1,199 @@
+// TravelSense database schema
+// Docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  TOURIST
+  MODERATOR
+  ADMIN
+}
+
+enum Category {
+  BEACH
+  HILL
+  WATERFALL
+  FOREST
+  HISTORICAL
+  MUSEUM
+  PARK
+  RELIGIOUS_CULTURAL
+}
+
+enum ReviewStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum FacilityType {
+  HOSPITAL
+  POLICE_STATION
+}
+
+model User {
+  id           String   @id @default(cuid())
+  name         String
+  email        String   @unique
+  passwordHash String
+  role         Role     @default(TOURIST)
+  phone        String?
+  city         String?
+  bio          String?
+  avatarUrl    String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  reviews          Review[]       @relation("ReviewAuthor")
+  moderatedReviews Review[]       @relation("ReviewModerator")
+  favorites        Favorite[]
+  wishlist         WishlistItem[]
+
+  @@index([role])
+}
+
+model Destination {
+  id               String   @id @default(cuid())
+  slug             String   @unique
+  name             String
+  category         Category
+  district         String
+  division         String
+  address          String?
+  latitude         Float?
+  longitude        Float?
+  shortDescription String
+  description      String
+  openingHours     String?
+  entryFee         String?
+  bestTimeToVisit  String?
+  isFeatured       Boolean  @default(false)
+  isHiddenGem      Boolean  @default(false)
+  // false = demonstration content that has not been verified by the project owner
+  isVerified       Boolean  @default(false)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  images            DestinationImage[]
+  safety            SafetyInfo?
+  facilities        NearbyFacility[]
+  emergencyContacts EmergencyContact[]
+  links             ExternalLink?
+  reviews           Review[]
+  favorites         Favorite[]
+  wishlist          WishlistItem[]
+
+  @@index([category])
+  @@index([name])
+}
+
+model DestinationImage {
+  id            String      @id @default(cuid())
+  destinationId String
+  url           String
+  caption       String?
+  credit        String?
+  sourceUrl     String?
+  sortOrder     Int         @default(0)
+  destination   Destination @relation(fields: [destinationId], references: [id], onDelete: Cascade)
+
+  @@index([destinationId])
+}
+
+model SafetyInfo {
+  id            String      @id @default(cuid())
+  destinationId String      @unique
+  tips          String[]
+  warnings      String[]
+  isVerified    Boolean     @default(false)
+  updatedAt     DateTime    @updatedAt
+  destination   Destination @relation(fields: [destinationId], references: [id], onDelete: Cascade)
+}
+
+model NearbyFacility {
+  id            String       @id @default(cuid())
+  destinationId String
+  type          FacilityType
+  name          String
+  address       String?
+  phone         String?
+  isVerified    Boolean      @default(false)
+  destination   Destination  @relation(fields: [destinationId], references: [id], onDelete: Cascade)
+
+  @@index([destinationId])
+}
+
+model EmergencyContact {
+  id            String      @id @default(cuid())
+  destinationId String
+  label         String
+  phone         String
+  isVerified    Boolean     @default(false)
+  destination   Destination @relation(fields: [destinationId], references: [id], onDelete: Cascade)
+
+  @@index([destinationId])
+}
+
+model ExternalLink {
+  id            String      @id @default(cuid())
+  destinationId String      @unique
+  website       String?
+  // Describes what the website is, e.g. "Managing authority" when it is not the site's own page
+  websiteLabel  String?
+  facebook      String?
+  youtube       String?
+  destination   Destination @relation(fields: [destinationId], references: [id], onDelete: Cascade)
+}
+
+model Review {
+  id            String       @id @default(cuid())
+  userId        String
+  destinationId String
+  rating        Int
+  comment       String
+  status        ReviewStatus @default(PENDING)
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  moderatedAt   DateTime?
+  moderatedById String?
+
+  user        User        @relation("ReviewAuthor", fields: [userId], references: [id], onDelete: Cascade)
+  moderatedBy User?       @relation("ReviewModerator", fields: [moderatedById], references: [id], onDelete: SetNull)
+  destination Destination @relation(fields: [destinationId], references: [id], onDelete: Cascade)
+
+  // One review per tourist per destination
+  @@unique([userId, destinationId])
+  @@index([destinationId, status])
+  @@index([status])
+}
+
+model Favorite {
+  userId        String
+  destinationId String
+  createdAt     DateTime    @default(now())
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  destination   Destination @relation(fields: [destinationId], references: [id], onDelete: Cascade)
+
+  @@id([userId, destinationId])
+  @@index([destinationId])
+}
+
+model WishlistItem {
+  userId        String
+  destinationId String
+  visited       Boolean     @default(false)
+  visitedAt     DateTime?
+  createdAt     DateTime    @default(now())
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  destination   Destination @relation(fields: [destinationId], references: [id], onDelete: Cascade)
+
+  @@id([userId, destinationId])
+  @@index([destinationId])
+}
